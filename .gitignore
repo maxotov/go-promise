@@ -1,0 +1,6 @@
+.vscode/
+trace.out
+debug.test
+.idea/
+go-promise
+*~
