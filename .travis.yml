@@ -1,0 +1,15 @@
+language: go
+
+go:
+  - 1.x
+  - "1.16"
+  - 1.16.x
+  - master
+
+go_import_path: github.com/maxotov/go-promise
+
+before_install:
+  - cp .netrc ~/.netrc
+  - chmod 600 ~/.netrc
+
+script: make test
