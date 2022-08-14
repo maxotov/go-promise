@@ -9,7 +9,7 @@ import (
 )
 
 func Test_WaitForValue_timeout_occurred(t *testing.T) {
-	promises := NewInt64MultiPromises()
+	promises := MultiPromises[int64]{}.NewMultiPromises()
 
 	ctx := context.Background()
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, time.Millisecond*5)
@@ -27,7 +27,7 @@ func Test_WaitForValue_timeout_occurred(t *testing.T) {
 }
 
 func Test_AddAndGet(t *testing.T) {
-	promises := NewInt64MultiPromises()
+	promises := MultiPromises[int64]{}.NewMultiPromises()
 
 	p := promises.AddAndGet("test_key")
 	require.EqualValues(t, 1, cap(p))
@@ -39,7 +39,7 @@ func Test_AddAndGet(t *testing.T) {
 }
 
 func Test_GetAll(t *testing.T) {
-	promises := NewInt64MultiPromises()
+	promises := MultiPromises[int64]{}.NewMultiPromises()
 
 	key := "test_key"
 	p1 := promises.AddAndGet(key)
@@ -49,11 +49,11 @@ func Test_GetAll(t *testing.T) {
 	require.EqualValues(t, 1, cap(p2))
 
 	all := promises.Get(key)
-	require.EqualValues(t, &Int64Promises{promises: []Int64Promise{p1, p2}}, all)
+	require.EqualValues(t, &Promises[int64]{promises: []Promise[int64]{p1, p2}}, all)
 }
 
 func Test_ResolveAll(t *testing.T) {
-	promises := NewInt64MultiPromises()
+	promises := MultiPromises[int64]{}.NewMultiPromises()
 
 	key := "test_key"
 	p1 := promises.AddAndGet(key)

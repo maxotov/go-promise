@@ -8,41 +8,42 @@ import (
 	"github.com/patrickmn/go-cache"
 )
 
-type Int64Promise chan int64
+type Promise[T any] chan T
 
-func NewInt64Promise() Int64Promise {
-	return Int64Promise(make(chan int64, 1))
+func (p Promise[T]) NewPromise() Promise[T] {
+	return make(chan T, 1)
 }
 
-func (p Int64Promise) Resolve(x int64) {
+func (p Promise[T]) Resolve(x T) {
 	p <- x
 	close(p)
 }
 
-func (p Int64Promise) WaitForResolve(ctx context.Context) (int64, error) {
+func (p Promise[T]) WaitForResolve(ctx context.Context) (T, error) {
+	var t T
 	select {
 	case result := <-p:
 		return result, nil
 	case <-ctx.Done():
-		return 0, ctx.Err()
+		return t, ctx.Err()
 	}
 }
 
-type Int64Promises struct {
+type Promises[T any] struct {
 	sync.Mutex
-	promises []Int64Promise
+	promises []Promise[T]
 	resolved bool
-	value    int64
+	value    T
 }
 
-func (pp *Int64Promises) Add(promise Int64Promise) {
+func (pp *Promises[T]) Add(promise Promise[T]) {
 	pp.Lock()
 	defer pp.Unlock()
 
 	pp.promises = append(pp.promises, promise)
 }
 
-func (pp *Int64Promises) Resolve(x int64) {
+func (pp *Promises[T]) Resolve(x T) {
 	pp.Lock()
 	defer pp.Unlock()
 
@@ -55,7 +56,7 @@ func (pp *Int64Promises) Resolve(x int64) {
 
 }
 
-func (pp *Int64Promises) Value() (int64, bool) {
+func (pp *Promises[T]) Value() (T, bool) {
 	pp.Lock()
 	defer pp.Unlock()
 
@@ -63,7 +64,8 @@ func (pp *Int64Promises) Value() (int64, bool) {
 		return pp.value, true
 	}
 
-	return 0, false
+	var t T
+	return t, false
 }
 
 const (
@@ -71,27 +73,27 @@ const (
 	cacheCleanupInterval   = 10 * time.Minute
 )
 
-type Int64MultiPromises struct {
+type MultiPromises[T any] struct {
 	v *cache.Cache
 }
 
-func NewInt64MultiPromises() *Int64MultiPromises {
-	return &Int64MultiPromises{
+func (s MultiPromises[T]) NewMultiPromises() *MultiPromises[T] {
+	return &MultiPromises[T]{
 		v: cache.New(cacheDefaultExpiration, cacheCleanupInterval),
 	}
 }
 
-func (s *Int64MultiPromises) WaitForValue(ctx context.Context, key string) (int64, error) {
+func (s *MultiPromises[T]) WaitForValue(ctx context.Context, key string) (T, error) {
 	p := s.AddAndGet(key)
 
 	return p.WaitForResolve(ctx)
 }
 
-func (s *Int64MultiPromises) AddAndGet(key string) Int64Promise {
-	promise := NewInt64Promise()
+func (s *MultiPromises[T]) AddAndGet(key string) Promise[T] {
+	promise := make(Promise[T]).NewPromise()
 
 	// We use Add to avoids race conditions when set initial slice of promises by key
-	err := s.v.Add(key, &Int64Promises{promises: []Int64Promise{promise}}, cache.DefaultExpiration)
+	err := s.v.Add(key, &Promises[T]{promises: []Promise[T]{promise}}, cache.DefaultExpiration)
 	if err == nil { // If item doesn't exists
 		return promise
 	}
@@ -107,19 +109,19 @@ func (s *Int64MultiPromises) AddAndGet(key string) Int64Promise {
 	return promise
 }
 
-func (s *Int64MultiPromises) Get(key string) *Int64Promises {
-	var pp *Int64Promises
+func (s *MultiPromises[T]) Get(key string) *Promises[T] {
+	var pp *Promises[T]
 	v, ok := s.v.Get(key)
 	if ok {
-		pp = v.(*Int64Promises)
+		pp = v.(*Promises[T])
 	}
 
 	return pp
 }
 
-func (s *Int64MultiPromises) Resolve(key string, value int64) {
+func (s *MultiPromises[T]) Resolve(key string, value T) {
 	// We use Add to avoids race conditions when set resolved promise by key
-	err := s.v.Add(key, &Int64Promises{resolved: true, value: value}, cache.DefaultExpiration)
+	err := s.v.Add(key, &Promises[T]{resolved: true, value: value}, cache.DefaultExpiration)
 	if err == nil { // If item doesn't exists
 		return
 	}
